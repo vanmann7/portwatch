@@ -67,3 +67,16 @@ func TestInvalidRules(t *testing.T) {
 		}
 	}
 }
+
+func TestAllowRangeBoundaries(t *testing.T) {
+	// Verify that range endpoints 1 and 65535 (min/max valid ports) are handled correctly.
+	f, err := New([]string{"1-65535"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, p := range []int{1, 1024, 65535} {
+		if !f.Allow(p) {
+			t.Errorf("expected port %d to be allowed", p)
+		}
+	}
+}
