@@ -50,6 +50,19 @@ func (h *History) Entries() []Entry {
 	return out
 }
 
+// Since returns all entries recorded at or after the given time.
+func (h *History) Since(t time.Time) []Entry {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var out []Entry
+	for _, e := range h.entries {
+		if !e.Timestamp.Before(t) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 // Save persists the history to a JSON file.
 func (h *History) Save(path string) error {
 	h.mu.Lock()
