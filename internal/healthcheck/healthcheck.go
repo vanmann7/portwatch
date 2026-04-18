@@ -33,8 +33,10 @@ func New(addr string, tracker *metrics.Tracker) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealth)
 	s.server = &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Addr:         addr,
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
 	}
 	return s
 }
@@ -70,5 +72,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		AlertsSent: snap.AlertsSent,
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
 }
