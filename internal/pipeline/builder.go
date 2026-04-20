@@ -1,67 +1,50 @@
 package pipeline
 
 import (
+	"io"
 	"time"
 
+	"github.com/user/portwatch/internal/aggregator"
 	"github.com/user/portwatch/internal/alert"
-	"github.com/user/portwatch/internal/baseline"
-	"github.com/user/portwatch/internal/cooldown"
+	"github.com/user/portwatch/internal/config"
 	"github.com/user/portwatch/internal/dedupe"
 	"github.com/user/portwatch/internal/filter"
 	"github.com/user/portwatch/internal/resolve"
-	"github.com/user/portwatch/internal/rollup"
-	"github.com/user/portwatch/internal/suppress"
+	"github.com/user/portwatch/internal/tagger"
 )
 
-// BuildOptions carries optional overrides for the assembled pipeline.
+// BuildOptions carries optional overrides used when constructing the pipeline.
 type BuildOptions struct {
-	FilterRules   []string
-	RollupWindow  time.Duration
-	CooldownTTL   time.Duration
-	DedupeWindow  time.Duration
-	BaselinePath  string
-	SuppressPath  string
+	// AlertWriter overrides the default stdout writer for alerts.
+	AlertWriter io.Writer
+	// AggregateWindow overrides the default 2-second aggregation window.
+	AggregateWindow time.Duration
 }
 
-// Build assembles a fully-wired Pipeline from the provided options and
-// returns it along with the rollup channel for downstream consumers.
-//
-// Callers own calling Pipeline.Stop and Roller.Stop when done.
-func Build(opts BuildOptions) (*Pipeline, *rollup.Roller, <-chan rollup.Batch, error) {
-	if opts.RollupWindow == 0 {
-		opts.RollupWindow = 300 * time.Millisecond
-	}
-	if opts.CooldownTTL == 0 {
-		opts.CooldownTTL = 5 * time.Second
-	}
-	if opts.DedupeWindow == 0 {
-		opts.DedupeWindow = 2 * time.Second
+// Build constructs a fully wired [Pipeline] from the supplied configuration.
+// It wires together the filter, resolver, tagger, deduplicator, aggregator,
+// and alert notifier according to cfg.
+func Build(cfg *config.Config, opts BuildOptions) (*Pipeline, error) {
+	if opts.AggregateWindow == 0 {
+		opts.AggregateWindow = 2 * time.Second
 	}
 
-	f, err := filter.New(opts.FilterRules)
+	f, err := filter.New(cfg.Rules)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	bl := baseline.New(opts.BaselinePath)
-	sp := suppress.New(opts.SuppressPath)
-	cd := cooldown.New(opts.CooldownTTL)
-	dd := dedupe.New(opts.DedupeWindow)
-	rv := resolve.New(nil)
-	al := alert.New(nil)
+	r := resolve.New(nil)
+	tg := tagger.New(nil)
+	dd := dedupe.New(5 * time.Second)
+	ag := aggregator.New(opts.AggregateWindow)
 
-	roller, batches := rollup.New(opts.RollupWindow)
+	var notifier *alert.Notifier
+	if opts.AlertWriter != nil {
+		notifier = alert.New(opts.AlertWriter)
+	} else {
+		notifier = alert.New(nil)
+	}
 
-	p := New(
-		WithFilter(f),
-		WithBaseline(bl),
-		WithSuppress(sp),
-		WithCooldown(cd),
-		WithDedupe(dd),
-		WithResolver(rv),
-		WithAlerter(al),
-		WithRoller(roller),
-	)
-
-	return p, roller, batches, nil
+	return New(f, r, tg, dd, ag, notifier), nil
 }
