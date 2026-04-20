@@ -1,63 +1,67 @@
 package pipeline
 
 import (
-	"fmt"
-	"io"
-	"os"
 	"time"
 
 	"github.com/user/portwatch/internal/alert"
+	"github.com/user/portwatch/internal/baseline"
+	"github.com/user/portwatch/internal/cooldown"
 	"github.com/user/portwatch/internal/dedupe"
 	"github.com/user/portwatch/internal/filter"
-	"github.com/user/portwatch/internal/metrics"
-	"github.com/user/portwatch/internal/notify"
+	"github.com/user/portwatch/internal/resolve"
+	"github.com/user/portwatch/internal/rollup"
+	"github.com/user/portwatch/internal/suppress"
 )
 
-// Config holds the options used by Build to construct a Pipeline.
-type Config struct {
-	// FilterRules are port/range expressions passed to filter.New.
-	// A nil or empty slice allows all ports.
-	FilterRules []string
-
-	// DedupeWindow is the time window within which identical events are
-	// suppressed. Defaults to 1 minute when zero.
-	DedupeWindow time.Duration
-
-	// Writer is the io.Writer used for alert and stdout notifications.
-	// Defaults to os.Stdout when nil.
-	Writer io.Writer
-
-	// LogPath, when non-empty, adds a file notify channel.
-	LogPath string
+// BuildOptions carries optional overrides for the assembled pipeline.
+type BuildOptions struct {
+	FilterRules   []string
+	RollupWindow  time.Duration
+	CooldownTTL   time.Duration
+	DedupeWindow  time.Duration
+	BaselinePath  string
+	SuppressPath  string
 }
 
-// Build constructs a ready-to-use Pipeline from cfg.
-func Build(cfg Config) (*Pipeline, error) {
-	if cfg.DedupeWindow == 0 {
-		cfg.DedupeWindow = time.Minute
+// Build assembles a fully-wired Pipeline from the provided options and
+// returns it along with the rollup channel for downstream consumers.
+//
+// Callers own calling Pipeline.Stop and Roller.Stop when done.
+func Build(opts BuildOptions) (*Pipeline, *rollup.Roller, <-chan rollup.Batch, error) {
+	if opts.RollupWindow == 0 {
+		opts.RollupWindow = 300 * time.Millisecond
 	}
-	if cfg.Writer == nil {
-		cfg.Writer = os.Stdout
+	if opts.CooldownTTL == 0 {
+		opts.CooldownTTL = 5 * time.Second
+	}
+	if opts.DedupeWindow == 0 {
+		opts.DedupeWindow = 2 * time.Second
 	}
 
-	f, err := filter.New(cfg.FilterRules)
+	f, err := filter.New(opts.FilterRules)
 	if err != nil {
-		return nil, fmt.Errorf("pipeline: filter: %w", err)
+		return nil, nil, nil, err
 	}
 
-	d := dedupe.New(cfg.DedupeWindow)
-	a := alert.New(cfg.Writer)
-	m := metrics.New()
+	bl := baseline.New(opts.BaselinePath)
+	sp := suppress.New(opts.SuppressPath)
+	cd := cooldown.New(opts.CooldownTTL)
+	dd := dedupe.New(opts.DedupeWindow)
+	rv := resolve.New(nil)
+	al := alert.New(nil)
 
-	channels := []notify.Channel{notify.NewStdout(cfg.Writer)}
-	if cfg.LogPath != "" {
-		fc, err := notify.NewFileChannel(cfg.LogPath)
-		if err != nil {
-			return nil, fmt.Errorf("pipeline: file channel: %w", err)
-		}
-		channels = append(channels, fc)
-	}
+	roller, batches := rollup.New(opts.RollupWindow)
 
-	disp := notify.NewDispatcher(channels)
-	return New(f, d, a, disp, m), nil
+	p := New(
+		WithFilter(f),
+		WithBaseline(bl),
+		WithSuppress(sp),
+		WithCooldown(cd),
+		WithDedupe(dd),
+		WithResolver(rv),
+		WithAlerter(al),
+		WithRoller(roller),
+	)
+
+	return p, roller, batches, nil
 }
