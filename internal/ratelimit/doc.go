@@ -1,6 +1,4 @@
 // Package ratelimit provides a token-bucket rate limiter for controlling
-// the frequency of port-change notifications. A Limiter is initialised with
-// a maximum number of tokens and a refill interval; each call to Allow
-// consumes one token, and tokens are replenished automatically after the
-// configured interval elapses.
+// how frequently port change notifications are emitted. It prevents alert
+// storms when many ports change state simultaneously.
 package ratelimit
