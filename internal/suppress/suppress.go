@@ -5,6 +5,7 @@ package suppress
 import (
 	"encoding/json"
 	"os"
+	"sort"
 	"sync"
 )
 
@@ -51,6 +52,7 @@ func (l *List) Ports() []int {
 	for p := range l.ports {
 		out = append(out, p)
 	}
+	sort.Ints(out)
 	return out
 }
 
@@ -62,6 +64,7 @@ func (l *List) Save(path string) error {
 	for p := range l.ports {
 		ports = append(ports, p)
 	}
+	sort.Ints(ports)
 	data, err := json.Marshal(ports)
 	if err != nil {
 		return err
