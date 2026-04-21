@@ -62,6 +62,18 @@ func TestNewThrottleIsEmpty(t *testing.T) {
 	}
 }
 
+// TestResetCountIsZero verifies that Count returns 0 immediately after Reset.
+func TestResetCountIsZero(t *testing.T) {
+	th := throttle.New(3, time.Second)
+	th.Allow()
+	th.Allow()
+	th.Allow()
+	th.Reset()
+	if got := th.Count(); got != 0 {
+		t.Fatalf("expected count 0 after reset, got %d", got)
+	}
+}
+
 type fakeThrottle struct {
 	*throttle.Throttle
 }
