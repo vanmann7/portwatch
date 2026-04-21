@@ -71,6 +71,19 @@ func TestProbeHTTPBanner(t *testing.T) {
 	}
 }
 
+func TestProbeFTPBanner(t *testing.T) {
+	port := startBannerServer(t, "220 FTP Server ready")
+	f := fingerprint.New(time.Second, 128)
+	res := f.Probe(port)
+
+	if res.Protocol != "ftp" {
+		t.Errorf("protocol: got %q, want \"ftp\"", res.Protocol)
+	}
+	if res.Banner == "" {
+		t.Error("expected non-empty banner for FTP server")
+	}
+}
+
 func TestDefaultsApplied(t *testing.T) {
 	// Zero values should not panic and should use sensible defaults.
 	f := fingerprint.New(0, 0)
