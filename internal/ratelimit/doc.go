@@ -1,3 +1,3 @@
 // Package ratelimit provides a token-bucket rate limiter for controlling
-// the frequency of port scan alerts and notifications.
+// how frequently alerts or notifications are emitted per port or event type.
 package ratelimit
