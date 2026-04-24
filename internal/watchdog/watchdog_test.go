@@ -27,11 +27,11 @@ func TestStaleAfterTimeout(t *testing.T) {
 	defer cancel()
 	go w.Run(ctx, 20*time.Millisecond)
 
-	time.Sleep(120*time.Millisecond)
+	time.Sleep(120 * time.Millisecond)
 	if got := w.Status(); got != watchdog.StatusStale {
 		t.Fatalf("expected Stale, got %v", got)
 	}
-	time.Sleep(30*time.Millisecond)
+	time.Sleep(30 * time.Millisecond)
 	if atomic.LoadInt32(&called) != 1 {
 		t.Fatal("expected onStale callback to have been called")
 	}
@@ -47,11 +47,11 @@ func TestDeadAfterTimeout(t *testing.T) {
 	defer cancel()
 	go w.Run(ctx, 10*time.Millisecond)
 
-	time.Sleep(120*time.Millisecond)
+	time.Sleep(120 * time.Millisecond)
 	if got := w.Status(); got != watchdog.StatusDead {
 		t.Fatalf("expected Dead, got %v", got)
 	}
-	time.Sleep(20*time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
 	if atomic.LoadInt32(&deadCalled) != 1 {
 		t.Fatal("expected onDead callback to have been called")
 	}
@@ -64,9 +64,9 @@ func TestPingResetsToHealthy(t *testing.T) {
 	defer cancel()
 	go w.Run(ctx, 10*time.Millisecond)
 
-	time.Sleep(50*time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	w.Ping()
-	time.Sleep(10*time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 
 	if got := w.Status(); got != watchdog.StatusHealthy {
 		t.Fatalf("expected Healthy after ping, got %v", got)
@@ -84,7 +84,16 @@ func TestRunStopsOnContextCancel(t *testing.T) {
 	cancel()
 	select {
 	case <-done:
-	case <-time.After(200*time.Millisecond):
+	case <-time.After(200 * time.Millisecond):
 		t.Fatal("Run did not stop after context cancellation")
+	}
+}
+
+// TestInitialStatusHealthy verifies that a newly created watchdog reports
+// StatusHealthy before any Run loop or Ping has occurred.
+func TestInitialStatusHealthy(t *testing.T) {
+	w := watchdog.New(100*time.Millisecond, 200*time.Millisecond, nil, nil)
+	if got := w.Status(); got != watchdog.StatusHealthy {
+		t.Fatalf("expected initial status to be Healthy, got %v", got)
 	}
 }
