@@ -98,3 +98,21 @@ func TestSamplerTicksMultipleTimes(t *testing.T) {
 		t.Fatalf("expected at least 2 ticks, got %d", got)
 	}
 }
+
+func TestSamplerResultTimestampIsRecent(t *testing.T) {
+	scan := func(_ context.Context) ([]int, error) {
+		return []int{443}, nil
+	}
+
+	before := time.Now()
+	s := sampler.New(tickInterval, 0, scan)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*tickInterval)
+	defer cancel()
+
+	r := <-s.Run(ctx)
+	after := time.Now()
+
+	if r.At.Before(before) || r.At.After(after) {
+		t.Fatalf("timestamp %v is outside expected range [%v, %v]", r.At, before, after)
+	}
+}
