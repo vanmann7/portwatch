@@ -21,6 +21,20 @@ const (
 	StateHalfOpen            // probe call allowed after reset window
 )
 
+// String returns a human-readable name for the state.
+func (s State) String() string {
+	switch s {
+	case StateClosed:
+		return "closed"
+	case StateOpen:
+		return "open"
+	case StateHalfOpen:
+		return "half-open"
+	default:
+		return "unknown"
+	}
+}
+
 // Breaker is a circuit breaker that tracks consecutive failures.
 type Breaker struct {
 	mu           sync.Mutex
